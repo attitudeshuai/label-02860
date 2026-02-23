@@ -1,0 +1,10 @@
+services:
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: campus-life-web
+    ports:
+      # 前端规范端口（交付）
+      - "8081:80"
+    restart: unless-stopped
