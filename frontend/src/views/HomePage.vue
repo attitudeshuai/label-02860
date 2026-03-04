@@ -209,7 +209,7 @@ function scrollToServices() {
 }
 
 function onMapClick() {
-  toastStore.info('功能开发中')
+  router.push({ name: 'campus-map' })
 }
 </script>
 

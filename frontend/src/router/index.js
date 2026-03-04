@@ -37,6 +37,18 @@ const routes = [
     name: 'personal-center',
     component: () => import('@/views/PersonalCenterPage.vue'),
     meta: { title: '个人中心', requiresAuth: true }
+  },
+  {
+    path: '/campus-map',
+    name: 'campus-map',
+    component: () => import('@/views/CampusMapPage.vue'),
+    meta: { title: '校园地图' }
+  },
+  {
+    path: '/error',
+    name: 'error',
+    component: () => import('@/views/ErrorPage.vue'),
+    meta: { title: '页面出错' }
   }
 ]
 

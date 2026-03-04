@@ -8,6 +8,7 @@
  */
 
 import { logger } from './logger'
+import { useToastStore } from '@/stores/toast'
 
 /** 是否已安装（避免重复注册） */
 let installed = false
@@ -85,8 +86,23 @@ export function installErrorHandler(app, router) {
   if (router) {
     router.onError((err) => {
       recordError('Router', err, { to: err?.to?.fullPath, from: err?.from?.fullPath })
-      // 避免导航失败时卡住
-      throw err
+
+      try {
+        const toastStore = useToastStore()
+        toastStore.error(getUserMessage(err))
+      } catch (_) {
+        // toast store 未就绪时静默降级
+      }
+
+      router.replace({
+        name: 'error',
+        query: {
+          message: getUserMessage(err),
+          from: err?.to?.fullPath || '/'
+        }
+      }).catch(() => {
+        router.replace({ name: 'home' }).catch(() => {})
+      })
     })
   }
 
