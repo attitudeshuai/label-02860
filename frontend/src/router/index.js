@@ -39,6 +39,18 @@ const routes = [
     meta: { title: '个人中心', requiresAuth: true }
   },
   {
+    path: '/my-bookings',
+    name: 'my-bookings',
+    component: () => import('@/views/MyBookingsPage.vue'),
+    meta: { title: '我的预约', requiresAuth: true }
+  },
+  {
+    path: '/admin/bookings',
+    name: 'admin-bookings',
+    component: () => import('@/views/AdminBookingsPage.vue'),
+    meta: { title: '预约管理', requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/campus-map',
     name: 'campus-map',
     component: () => import('@/views/CampusMapPage.vue'),
@@ -67,6 +79,11 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next({ name: 'login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  if (to.meta.requiresAdmin && userStore.userRole !== 'admin') {
+    next({ name: 'home' })
     return
   }
 

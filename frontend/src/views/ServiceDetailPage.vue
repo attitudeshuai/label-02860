@@ -59,15 +59,97 @@
               </div>
             </div>
 
-            <!-- Booking Info -->
+            <!-- Booking Form -->
             <div class="card mt-4 animate-fade-in-up stagger-2">
               <div class="card-body p-4">
                 <h5 class="card-title mb-3">
-                  <i class="bi bi-calendar-check me-2 text-primary"></i>预约方式
+                  <i class="bi bi-calendar-check me-2 text-primary"></i>在线预约
                 </h5>
-                <div class="booking-info">
-                  <p>{{ service.bookingMethod }}</p>
+
+                <div v-if="!userStore.isLoggedIn" class="text-center py-4">
+                  <i class="bi bi-lock text-muted" style="font-size: 48px;"></i>
+                  <p class="text-muted mt-3 mb-4">请先登录后再进行预约</p>
+                  <router-link
+                    :to="{ name: 'login', query: { redirect: `/service/${service.id}` } }"
+                    class="btn btn-primary"
+                  >
+                    <i class="bi bi-box-arrow-in-right me-2"></i>立即登录
+                  </router-link>
                 </div>
+
+                <form v-else @submit.prevent="handleSubmitBooking" novalidate>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-medium">选择日期</label>
+                      <input
+                        v-model="bookingForm.date"
+                        type="date"
+                        class="form-control"
+                        :class="{ 'is-invalid': bookingErrors.date }"
+                        :min="minDate"
+                      />
+                      <div v-if="bookingErrors.date" class="invalid-feedback">
+                        {{ bookingErrors.date }}
+                      </div>
+                    </div>
+
+                    <div class="col-md-12">
+                      <label class="form-label fw-medium">选择时间段</label>
+                      <div class="time-slots">
+                        <button
+                          v-for="slot in TIME_SLOTS"
+                          :key="slot"
+                          type="button"
+                          class="time-slot-btn"
+                          :class="{
+                            'time-slot-selected': bookingForm.timeSlot === slot,
+                            'time-slot-available': isSlotAvailable(slot) && bookingForm.date,
+                            'time-slot-unavailable': !isSlotAvailable(slot) && bookingForm.date
+                          }"
+                          :disabled="bookingForm.date && !isSlotAvailable(slot)"
+                          @click="selectTimeSlot(slot)"
+                        >
+                          {{ slot }}
+                          <span
+                            v-if="bookingForm.date && !isSlotAvailable(slot)"
+                            class="slot-status"
+                          >
+                            已约
+                          </span>
+                        </button>
+                      </div>
+                      <div v-if="bookingErrors.timeSlot" class="invalid-feedback d-block">
+                        {{ bookingErrors.timeSlot }}
+                      </div>
+                    </div>
+
+                    <div class="col-md-12">
+                      <label class="form-label fw-medium">备注说明（可选）</label>
+                      <textarea
+                        v-model="bookingForm.notes"
+                        class="form-control"
+                        rows="3"
+                        placeholder="如有特殊需求请在此说明..."
+                        maxlength="200"
+                      ></textarea>
+                      <small class="text-muted">{{ bookingForm.notes.length }}/200</small>
+                    </div>
+
+                    <div class="col-md-12 mt-4">
+                      <button
+                        type="submit"
+                        class="btn btn-primary px-4"
+                        :disabled="submitting || !bookingForm.date || !bookingForm.timeSlot"
+                      >
+                        <span v-if="submitting" class="loading-spinner me-2"></span>
+                        {{ submitting ? '提交中...' : '提交预约申请' }}
+                      </button>
+                      <router-link to="/my-bookings" class="btn btn-outline-secondary ms-3">
+                        <i class="bi bi-list me-2"></i>查看我的预约
+                      </router-link>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
@@ -142,12 +224,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useServiceStore } from '@/stores/service'
+import { useUserStore } from '@/stores/user'
+import { useBookingStore, TIME_SLOTS } from '@/stores/booking'
+import { useToastStore } from '@/stores/toast'
 
 const route = useRoute()
 const serviceStore = useServiceStore()
+const userStore = useUserStore()
+const bookingStore = useBookingStore()
+const toast = useToastStore()
 
 const service = computed(() =>
   serviceStore.getServiceById(route.params.id)
@@ -159,6 +247,88 @@ const relatedServices = computed(() => {
     .filter(s => s.category === service.value.category && s.id !== service.value.id)
     .slice(0, 3)
 })
+
+const minDate = computed(() => {
+  const today = new Date()
+  return today.toISOString().split('T')[0]
+})
+
+const submitting = ref(false)
+
+const bookingForm = reactive({
+  date: '',
+  timeSlot: '',
+  notes: ''
+})
+
+const bookingErrors = reactive({
+  date: '',
+  timeSlot: ''
+})
+
+function isSlotAvailable(slot) {
+  if (!bookingForm.date || !service.value) return true
+  return bookingStore.isTimeSlotAvailable(service.value.id, bookingForm.date, slot)
+}
+
+function selectTimeSlot(slot) {
+  if (!isSlotAvailable(slot)) return
+  bookingForm.timeSlot = slot
+  bookingErrors.timeSlot = ''
+}
+
+function validateBookingForm() {
+  let valid = true
+
+  if (!bookingForm.date) {
+    bookingErrors.date = '请选择预约日期'
+    valid = false
+  } else {
+    bookingErrors.date = ''
+  }
+
+  if (!bookingForm.timeSlot) {
+    bookingErrors.timeSlot = '请选择预约时间段'
+    valid = false
+  } else if (!isSlotAvailable(bookingForm.timeSlot)) {
+    bookingErrors.timeSlot = '该时间段已被预约，请重新选择'
+    valid = false
+  } else {
+    bookingErrors.timeSlot = ''
+  }
+
+  return valid
+}
+
+async function handleSubmitBooking() {
+  if (!validateBookingForm() || !service.value) return
+
+  submitting.value = true
+  await new Promise(r => setTimeout(r, 500))
+
+  const result = bookingStore.createBooking({
+    userId: userStore.currentUser.id,
+    userName: userStore.currentUser.nickname || userStore.currentUser.username,
+    serviceId: service.value.id,
+    serviceTitle: service.value.title,
+    date: bookingForm.date,
+    timeSlot: bookingForm.timeSlot,
+    notes: bookingForm.notes,
+    userPhone: userStore.currentUser.phone || '',
+    userEmail: userStore.currentUser.email || ''
+  })
+
+  submitting.value = false
+
+  if (result.success) {
+    toast.success(result.message)
+    bookingForm.date = ''
+    bookingForm.timeSlot = ''
+    bookingForm.notes = ''
+  } else {
+    toast.error(result.message)
+  }
+}
 </script>
 
 <style scoped>
@@ -276,6 +446,60 @@ const relatedServices = computed(() => {
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-neutral-800);
+}
+
+.time-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.time-slot-btn {
+  padding: 10px 18px;
+  border: 2px solid var(--color-neutral-200);
+  background: white;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  min-width: 80px;
+}
+
+.time-slot-btn:not(:disabled):hover {
+  border-color: var(--color-primary);
+}
+
+.time-slot-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.time-slot-available {
+  border-color: var(--color-neutral-200);
+  background: white;
+}
+
+.time-slot-selected {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.time-slot-unavailable {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-400);
+}
+
+.slot-status {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+  color: var(--color-neutral-400);
+}
+
+.time-slot-selected .slot-status {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 @media (max-width: 768px) {
