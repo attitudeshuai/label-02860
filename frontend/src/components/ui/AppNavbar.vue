@@ -34,6 +34,16 @@
               <i class="bi bi-megaphone me-1"></i>公告
             </router-link>
           </li>
+          <li v-if="userStore.isLoggedIn" class="nav-item">
+            <router-link class="nav-link" active-class="active" to="/my-bookings">
+              <i class="bi bi-calendar-event me-1"></i>我的预约
+            </router-link>
+          </li>
+          <li v-if="userStore.userRole === 'admin'" class="nav-item">
+            <router-link class="nav-link" active-class="active" to="/admin/bookings">
+              <i class="bi bi-clipboard-check me-1"></i>预约管理
+            </router-link>
+          </li>
         </ul>
 
         <div class="d-flex align-items-center gap-3">
