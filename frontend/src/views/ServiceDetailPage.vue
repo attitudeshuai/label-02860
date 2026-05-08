@@ -59,15 +59,91 @@
               </div>
             </div>
 
-            <!-- Booking Info -->
+            <!-- Booking Form -->
             <div class="card mt-4 animate-fade-in-up stagger-2">
               <div class="card-body p-4">
                 <h5 class="card-title mb-3">
-                  <i class="bi bi-calendar-check me-2 text-primary"></i>预约方式
+                  <i class="bi bi-calendar-check me-2 text-primary"></i>在线预约
                 </h5>
-                <div class="booking-info">
-                  <p>{{ service.bookingMethod }}</p>
-                </div>
+
+                <template v-if="!userStore.isLoggedIn">
+                  <div class="booking-login-hint">
+                    <i class="bi bi-lock me-2"></i>
+                    <span>请先</span>
+                    <router-link :to="{ name: 'login', query: { redirect: $route.fullPath } }" class="fw-bold">
+                      登录
+                    </router-link>
+                    <span>后进行预约</span>
+                  </div>
+                </template>
+
+                <template v-else>
+                  <form @submit.prevent="handleSubmitBooking" novalidate>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <label class="form-label fw-medium">预约日期</label>
+                        <input
+                          v-model="bookingForm.date"
+                          type="date"
+                          class="form-control"
+                          :class="{ 'is-invalid': formErrors.date }"
+                          :min="minDate"
+                          @blur="validateField('date')"
+                          @input="formErrors.date = ''"
+                          @change="onDateChange"
+                        />
+                        <div v-if="formErrors.date" class="invalid-feedback">
+                          {{ formErrors.date }}
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label fw-medium">预约时段</label>
+                        <select
+                          v-model="bookingForm.timeSlot"
+                          class="form-select"
+                          :class="{ 'is-invalid': formErrors.timeSlot }"
+                          @blur="validateField('timeSlot')"
+                          @change="formErrors.timeSlot = ''"
+                        >
+                          <option value="">请选择时段</option>
+                          <option
+                            v-for="slot in timeSlots"
+                            :key="slot.value"
+                            :value="slot.value"
+                            :disabled="isSlotBooked(slot.value)"
+                          >
+                            {{ slot.label }}{{ isSlotBooked(slot.value) ? '（已约满）' : '' }}
+                          </option>
+                        </select>
+                        <div v-if="formErrors.timeSlot" class="invalid-feedback">
+                          {{ formErrors.timeSlot }}
+                        </div>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label fw-medium">备注（选填）</label>
+                        <textarea
+                          v-model="bookingForm.remark"
+                          class="form-control"
+                          rows="3"
+                          placeholder="如有特殊需求请在此说明"
+                          maxlength="200"
+                        ></textarea>
+                        <small class="text-muted">{{ bookingForm.remark.length }}/200</small>
+                      </div>
+                      <div class="col-12 mt-3">
+                        <button
+                          type="submit"
+                          class="btn btn-primary px-4"
+                          :disabled="submitting"
+                        >
+                          <span v-if="submitting" class="loading-spinner me-2"></span>
+                          <i v-else class="bi bi-check2-circle me-1"></i>
+                          {{ submitting ? '提交中...' : '提交预约' }}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </template>
               </div>
             </div>
           </div>
@@ -108,7 +184,45 @@
                       <p class="mb-0 fw-medium">{{ service.contact }}</p>
                     </div>
                   </li>
+                  <li>
+                    <div class="info-icon">
+                      <i class="bi bi-calendar-check-fill"></i>
+                    </div>
+                    <div>
+                      <small class="text-muted">预约方式</small>
+                      <p class="mb-0 fw-medium">{{ service.bookingMethod }}</p>
+                    </div>
+                  </li>
                 </ul>
+              </div>
+            </div>
+
+            <!-- My bookings for this service -->
+            <div v-if="userStore.isLoggedIn && myServiceBookings.length" class="card mt-4 animate-fade-in-up stagger-3">
+              <div class="card-body p-4">
+                <h5 class="card-title mb-3">
+                  <i class="bi bi-list-check me-2 text-primary"></i>我的预约
+                </h5>
+                <div class="my-booking-list">
+                  <div
+                    v-for="bk in myServiceBookings"
+                    :key="bk.id"
+                    class="my-booking-item"
+                  >
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <div class="fw-medium">{{ bk.date }}</div>
+                        <small class="text-muted">{{ bk.timeSlot }}</small>
+                      </div>
+                      <span class="badge" :class="statusBadgeClass(bk.status)">
+                        {{ statusLabel(bk.status) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <router-link to="/my-bookings" class="btn btn-outline-primary btn-sm w-100 mt-3">
+                  查看全部预约 <i class="bi bi-arrow-right ms-1"></i>
+                </router-link>
               </div>
             </div>
 
@@ -142,12 +256,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useServiceStore } from '@/stores/service'
+import { useBookingStore } from '@/stores/booking'
+import { useUserStore } from '@/stores/user'
+import { useToastStore } from '@/stores/toast'
 
 const route = useRoute()
 const serviceStore = useServiceStore()
+const bookingStore = useBookingStore()
+const userStore = useUserStore()
+const toast = useToastStore()
 
 const service = computed(() =>
   serviceStore.getServiceById(route.params.id)
@@ -159,6 +279,116 @@ const relatedServices = computed(() => {
     .filter(s => s.category === service.value.category && s.id !== service.value.id)
     .slice(0, 3)
 })
+
+const myServiceBookings = computed(() => {
+  if (!userStore.currentUser) return []
+  return bookingStore.getBookingsByService(route.params.id)
+    .filter(b => b.userId === userStore.currentUser.id)
+    .slice(0, 3)
+})
+
+const timeSlots = [
+  { value: '08:00 - 09:00', label: '08:00 - 09:00' },
+  { value: '09:00 - 10:00', label: '09:00 - 10:00' },
+  { value: '10:00 - 11:00', label: '10:00 - 11:00' },
+  { value: '11:00 - 12:00', label: '11:00 - 12:00' },
+  { value: '14:00 - 15:00', label: '14:00 - 15:00' },
+  { value: '15:00 - 16:00', label: '15:00 - 16:00' },
+  { value: '16:00 - 17:00', label: '16:00 - 17:00' },
+  { value: '19:00 - 20:00', label: '19:00 - 20:00' }
+]
+
+const minDate = computed(() => {
+  const d = new Date()
+  return d.toISOString().split('T')[0]
+})
+
+const bookingForm = reactive({
+  date: '',
+  timeSlot: '',
+  remark: ''
+})
+
+const formErrors = reactive({
+  date: '',
+  timeSlot: ''
+})
+
+const submitting = ref(false)
+
+function isSlotBooked(slotValue) {
+  if (!bookingForm.date) return false
+  return bookingStore.bookings.some(
+    b =>
+      b.serviceId === Number(route.params.id) &&
+      b.date === bookingForm.date &&
+      b.timeSlot === slotValue &&
+      b.status !== 'rejected' &&
+      b.status !== 'cancelled'
+  )
+}
+
+function onDateChange(e) {
+  bookingForm.date = e.target.value
+  formErrors.date = ''
+}
+
+function validateField(field) {
+  if (field === 'date') {
+    formErrors.date = bookingForm.date ? '' : '请选择预约日期'
+  }
+  if (field === 'timeSlot') {
+    formErrors.timeSlot = bookingForm.timeSlot ? '' : '请选择预约时段'
+  }
+}
+
+function validateForm() {
+  validateField('date')
+  validateField('timeSlot')
+  return !formErrors.date && !formErrors.timeSlot
+}
+
+async function handleSubmitBooking() {
+  if (!validateForm()) return
+
+  submitting.value = true
+  await new Promise(r => setTimeout(r, 500))
+
+  const result = bookingStore.createBooking({
+    userId: userStore.currentUser.id,
+    serviceId: route.params.id,
+    serviceTitle: service.value.title,
+    date: bookingForm.date,
+    timeSlot: bookingForm.timeSlot,
+    remark: bookingForm.remark
+  })
+
+  submitting.value = false
+
+  if (result.success) {
+    toast.success(result.message)
+    bookingForm.date = ''
+    bookingForm.timeSlot = ''
+    bookingForm.remark = ''
+  } else {
+    toast.error(result.message)
+  }
+}
+
+function statusLabel(status) {
+  const map = { pending: '待审批', approved: '已确认', rejected: '已拒绝', cancelled: '已取消' }
+  return map[status] || status
+}
+
+function statusBadgeClass(status) {
+  const map = {
+    pending: 'bg-warning bg-opacity-10 text-warning',
+    approved: 'bg-success bg-opacity-10 text-success',
+    rejected: 'bg-danger bg-opacity-10 text-danger',
+    cancelled: 'bg-secondary bg-opacity-10 text-secondary'
+  }
+  return map[status] || ''
+}
 </script>
 
 <style scoped>
@@ -200,17 +430,14 @@ const relatedServices = computed(() => {
   font-size: var(--font-size-base);
 }
 
-.booking-info {
-  padding: 16px;
+.booking-login-hint {
+  padding: 24px;
   background: var(--color-primary-50);
   border-radius: var(--radius-md);
   border-left: 4px solid var(--color-primary);
-}
-
-.booking-info p {
-  margin: 0;
+  text-align: center;
   color: var(--color-neutral-700);
-  line-height: 1.7;
+  font-size: var(--font-size-base);
 }
 
 .info-list {
@@ -242,6 +469,18 @@ const relatedServices = computed(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.my-booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-booking-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-50);
 }
 
 .related-list {

@@ -18,16 +18,16 @@
               </p>
               <div class="profile-stats d-flex justify-content-center gap-4">
                 <div class="stat-item">
-                  <strong class="d-block text-primary">12</strong>
+                  <strong class="d-block text-primary">{{ myBookingCount }}</strong>
                   <small class="text-muted">已预约</small>
                 </div>
                 <div class="stat-item">
-                  <strong class="d-block text-primary">5</strong>
-                  <small class="text-muted">收藏</small>
+                  <strong class="d-block text-primary">{{ pendingCount }}</strong>
+                  <small class="text-muted">待审批</small>
                 </div>
                 <div class="stat-item">
-                  <strong class="d-block text-primary">3</strong>
-                  <small class="text-muted">评价</small>
+                  <strong class="d-block text-primary">{{ approvedCount }}</strong>
+                  <small class="text-muted">已确认</small>
                 </div>
               </div>
             </div>
@@ -36,6 +36,17 @@
           <!-- Quick Actions -->
           <div class="card mt-4 animate-fade-in-up stagger-1">
             <div class="card-body p-3">
+              <router-link to="/my-bookings" class="quick-action text-decoration-none">
+                <i class="bi bi-calendar2-check text-primary"></i>
+                <span>我的预约</span>
+                <span v-if="pendingCount > 0" class="badge bg-warning bg-opacity-10 text-warning ms-1">{{ pendingCount }}</span>
+                <i class="bi bi-chevron-right ms-auto text-muted"></i>
+              </router-link>
+              <router-link v-if="userStore.userRole === 'admin'" to="/admin/bookings" class="quick-action text-decoration-none">
+                <i class="bi bi-clipboard-check text-success"></i>
+                <span>预约审批</span>
+                <i class="bi bi-chevron-right ms-auto text-muted"></i>
+              </router-link>
               <div class="quick-action" @click="activeTab = 'profile'">
                 <i class="bi bi-person-gear text-primary"></i>
                 <span>编辑资料</span>
@@ -211,16 +222,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useBookingStore } from '@/stores/booking'
 import { useToastStore } from '@/stores/toast'
 import { validateNickname, validateEmail, validatePhone } from '@/utils/validators'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const bookingStore = useBookingStore()
 const toast = useToastStore()
+
+const myBookings = computed(() => {
+  if (!userStore.currentUser) return []
+  return bookingStore.getBookingsByUser(userStore.currentUser.id)
+})
+
+const myBookingCount = computed(() => myBookings.value.length)
+const pendingCount = computed(() => myBookings.value.filter(b => b.status === 'pending').length)
+const approvedCount = computed(() => myBookings.value.filter(b => b.status === 'approved').length)
 
 const activeTab = ref('profile')
 const saving = ref(false)

@@ -227,6 +227,48 @@ export const mockAnnouncements = [
   }
 ]
 
+export const mockBookings = [
+  {
+    id: 1001,
+    userId: 2,
+    serviceId: 3,
+    serviceTitle: '学业辅导中心',
+    date: '2026-05-15',
+    timeSlot: '14:00 - 15:00',
+    remark: '需要辅导高等数学',
+    status: 'pending',
+    createdAt: '2026-05-08T08:00:00.000Z',
+    reviewedAt: null,
+    reviewRemark: ''
+  },
+  {
+    id: 1002,
+    userId: 2,
+    serviceId: 5,
+    serviceTitle: '校园健身中心',
+    date: '2026-05-12',
+    timeSlot: '16:00 - 17:00',
+    remark: '',
+    status: 'approved',
+    createdAt: '2026-05-07T10:00:00.000Z',
+    reviewedAt: '2026-05-07T14:00:00.000Z',
+    reviewRemark: ''
+  },
+  {
+    id: 1003,
+    userId: 2,
+    serviceId: 1,
+    serviceTitle: '自助洗衣服务',
+    date: '2026-05-10',
+    timeSlot: '09:00 - 10:00',
+    remark: '3号洗衣机',
+    status: 'rejected',
+    createdAt: '2026-05-06T09:00:00.000Z',
+    reviewedAt: '2026-05-06T11:00:00.000Z',
+    reviewRemark: '该时段设备维护，请选择其他时间'
+  }
+]
+
 export const serviceCategories = [
   { id: 1, name: '生活服务', icon: 'bi-house-heart', color: '#2563EB' },
   { id: 2, name: '学习服务', icon: 'bi-book', color: '#059669' },
