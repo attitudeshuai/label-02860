@@ -10,7 +10,9 @@ import { logger } from './logger'
 export const STORAGE_KEYS = {
   USER: 'campus_current_user',
   USERS: 'campus_users',
-  TOKEN: 'campus_token'
+  TOKEN: 'campus_token',
+  BOOKINGS: 'campus_bookings',
+  BOOKING_VERSION: 'campus_bookings_version'
 }
 
 /**
